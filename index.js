@@ -35,8 +35,8 @@ sequelize
     console.log("Error connecting to database", err);
   });
 
-// Define film entity
-const Film = sequelize.define("film", {
+// Define film model
+const Films = sequelize.define("film", {
   id: { type: Sequelize.INTEGER, primaryKey: true },
   title: Sequelize.STRING,
   release_date: Sequelize.DATE,
@@ -45,8 +45,8 @@ const Film = sequelize.define("film", {
   reviews: Sequelize.INTEGER
 });
 
-// Define genre entity
-const Genre = sequelize.define("genre", {
+// Define genre model
+const Genres = sequelize.define("genre", {
   id: { type: Sequelize.INTEGER, primaryKey: true },
   name: Sequelize.STRING
 });
@@ -87,82 +87,85 @@ function getFilmRecommendations(req, res) {
     }
   };
 
-  // Get film by ID and genre from db
-  Film.findById(FILM_ID).then(film => {
-    if (film === null) {
+  // Get film by ID
+  let currFilm;
+  Films.findById(FILM_ID).then(film => {
+    if (!film) {
       const error = new Error("Film id doesn't exist");
       res.status(422).send({ message: error });
       return;
     }
-    Genre.findById(film.genre_id).then(genre => {
-      if (genre === null) {
-        const error = new Error("Error finding genre");
-        res.status(422).send({ message: error });
-        return;
-      }
-      let dateRangeStart = new Date(film.release_date);
-      dateRangeStart.setFullYear(-15 + dateRangeStart.getFullYear());
-      let dateRangeEnd = new Date(film.release_date);
-      dateRangeEnd.setFullYear(15 + dateRangeEnd.getFullYear());
 
-      // Fetch all films matching query genre from db
-      return Film.findAll({
-        attributes: ["id", "title", "release_date"],
-        where: {
-          genre_id: genre.id,
-          release_date: { $between: [dateRangeStart, dateRangeEnd] }
-        },
-        raw: true
-      })
-        .then(allFilms => {
-          const ids = allFilms.map(film => film.id);
+    currFilm = film;
+  });
+  
+  // Get film genre from db
+  Genres.findById(currFilm.genre_id).then(genre => {
+    if (!genre) {
+      const error = new Error("Error finding genre");
+      res.status(422).send({ message: error });
+      return;
+    }
 
-          // Get reviews for films from 3rd Party API
-          const sortedRecommendationIds = request(
-            { url: API_URL + "?films=" + ids.join(",") },
-            (err, res, body) => {
-              if (err) {
-                return next(err);
-              }
+    let dateRangeStart = new Date(currFilm.release_date);
+    dateRangeStart.setFullYear(-15 + dateRangeStart.getFullYear());
+    let dateRangeEnd = new Date(currFilm.release_date);
+    dateRangeEnd.setFullYear(15 + dateRangeEnd.getFullYear());
 
-              // Filter recommendations by rating quantity/quality
-              const averageRating = film => {
-                let ratingsSum = 0;
-                film.reviews.forEach(review => {
-                  ratingsSum += review.rating;
-                });
-                return (
-                  Math.round(ratingsSum / film.reviews.length * 100, 1) / 100
-                );
-              };
+    // Fetch all films matching query genre from db
+    return Films.findAll({
+      attributes: ["id", "title", "release_date"],
+      where: {
+        genre_id: genre.id,
+        release_date: { $between: [dateRangeStart, dateRangeEnd] }
+      },
+      raw: true
+    }).then(totalFilms => {
+        // Create array of film ids
+        const ids = totalFilms.map(film => film.id);
 
-              let allReviews = JSON.parse(body);
-
-              // Filter films with at least 5 reviews & over 4.0 ratings. Add data to response
-              allReviews
-                .filter(
-                  film => film.reviews.length >= 5 && averageRating(film) > 4.0
-                )
-                .map(film => {
-                  let dbData = allFilms.find(data => film.film_id === data.id);
-
-                  response.recommendations.push({
-                    id: film.film_id,
-                    title: dbData.title,
-                    releaseDate: dbData.release_date,
-                    genre: genre.name,
-                    averageRating: averageRating(film),
-                    reviews: film.reviews.length
-                  });
-                })
-                .sort((a, b) => a.id - b.id);
+        // Get reviews for films from 3rd Party API
+        const sortedRecommendationIds = request(
+          { url: API_URL + "?films=" + ids.join(",") },
+          (err, res, body) => {
+            if (err) {
+              return next(err);
             }
-          );
-        })
-        .catch(err => {
-          res.status(422).send({ message: err });
-        });
-    });
+
+            // Filter recommendations by rating quantity/quality
+            const averageRating = film => {
+              let ratingsSum = 0;
+              film.reviews.forEach(review => {
+                ratingsSum += review.rating;
+              });
+              return (
+                Math.round(ratingsSum / film.reviews.length * 100, 1) / 100
+              );
+            };
+
+            let allReviews = JSON.parse(body);
+
+            // Filter films with at least 5 reviews & over 4.0 ratings. Add data to response
+            allReviews
+              .filter(film => film.reviews.length >= 5 && averageRating(film) > 4.0)
+              .map(film => {
+                let dbData = totalFilms.find(data => film.film_id === data.id);
+
+                response.recommendations.push({
+                  id: film.film_id,
+                  title: dbData.title,
+                  releaseDate: dbData.release_date,
+                  genre: genre.name,
+                  averageRating: averageRating(film),
+                  reviews: film.reviews.length
+                });
+              }).sort((a, b) => a.id - b.id);
+          }
+        );
+      })
+      .catch(err => {
+        res.status(422).send({ message: err });
+      });
   });
 
   res.status(200).json(response);
