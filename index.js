@@ -1,8 +1,8 @@
 const sqlite = require("sqlite"),
-  Sequelize = require("sequelize"),
-  request = require("request"),
-  express = require("express"),
-  app = express();
+      Sequelize = require("sequelize"),
+      request = require("request"),
+      express = require("express"),
+      app = express();
 
 const {
   PORT = 3000,
@@ -88,7 +88,6 @@ function getFilmRecommendations(req, res) {
   };
 
   // Get film by ID
-  let currFilm;
   Films.findById(FILM_ID).then(film => {
     if (!film) {
       const error = new Error("Film id doesn't exist");
@@ -96,11 +95,8 @@ function getFilmRecommendations(req, res) {
       return;
     }
 
-    currFilm = film;
-  });
-  
   // Get film genre from db
-  Genres.findById(currFilm.genre_id).then(genre => {
+  Genres.findById(film.genre_id).then(genre => {
     if (!genre) {
       const error = new Error("Error finding genre");
       res.status(422).send({ message: error });
@@ -138,9 +134,7 @@ function getFilmRecommendations(req, res) {
               film.reviews.forEach(review => {
                 ratingsSum += review.rating;
               });
-              return (
-                Math.round(ratingsSum / film.reviews.length * 100, 1) / 100
-              );
+              return Math.round(ratingsSum / film.reviews.length * 100, 1) / 100;
             };
 
             let allReviews = JSON.parse(body);
@@ -166,7 +160,15 @@ function getFilmRecommendations(req, res) {
       .catch(err => {
         res.status(422).send({ message: err });
       });
+    });
   });
+  
+  // Implement limit & offset
+  response.recommendations.splice(0, offset);
+  response.recommendations.splice(
+    limit,
+    response.recommendations.length - limit
+  );
 
   res.status(200).json(response);
 }

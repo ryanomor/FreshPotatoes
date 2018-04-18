@@ -9,7 +9,7 @@ The FreshPotatoes team has defined a RESTful API endpoint they want you to build
 In this README, you'll find information about:
 
 * [What to build](#what-to-build)
-  * [API Specifications](#api-specifications)
+* [API Specifications](#api-specifications)
 * [Technologies to use](#freshpotatoes-technologies)
 * [What to turn in](#what-to-turn-in)
 * [How to submit your work](#how-to-submit-your-work)
@@ -143,7 +143,7 @@ The FreshPotatoes API service will be separate from their customer-facing web ap
 
 The database schema is also provided via entity-relationship diagram. To interact with the database: `$ sqlite3 db/database.db`.
 
-<p align="center">
+<p align="center"> 
   <img src="https://i.imgur.com/eAuzbPZ.png">
 </p>
 
